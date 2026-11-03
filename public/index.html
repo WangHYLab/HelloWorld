@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HELLO/WORLD — 轨道问候终端</title>
+    <meta
+      name="description"
+      content="一颗由几何陆地与海洋构成的地球。点击鼠标或按下任意键，让小人跳起来向宇宙说一声：你好世界。"
+    />
+    <meta name="theme-color" content="#0b0c09" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230b0c09'/%3E%3Ccircle cx='32' cy='32' r='21' fill='%232f4bff' stroke='%23f1eee1' stroke-width='2'/%3E%3Cpath d='M19 30l8-8 7 5 5-7 7 11-4 8 3 7-10 5-9-4-8-2z' fill='%23c8ff00'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <p class="sr-only">
+      点击页面任意位置，或按下任意字母键、回车键，让地球上的小人跳起来说一句你好世界。页面会显示全球累计问候次数。
+    </p>
+    <div class="sr-only" id="live-status" role="status" aria-live="polite"></div>
+
+    <div class="page">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="HELLO WORLD 首页">
+          <span class="brand-orb" aria-hidden="true"><i></i></span>
+          <span class="brand-name">HELLO<span class="brand-slash">/</span>WORLD</span>
+          <span class="brand-cn">你好世界</span>
+        </a>
+
+        <div class="topbar-meta">
+          <div class="meta-item">
+            <span class="meta-label">SIGNAL</span>
+            <span class="meta-value meta-live" id="signal-status"><i></i>LIVE</span>
+          </div>
+          <div class="meta-item meta-clock">
+            <span class="meta-label">UTC</span>
+            <span class="meta-value" id="utc-clock">00:00:00</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">BEINGS ONLINE</span>
+            <span class="meta-value" id="online-count">00</span>
+          </div>
+          <div class="meta-item meta-mobile-count">
+            <span class="meta-label">GREETINGS</span>
+            <span class="meta-value" id="mobile-count">000,000</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="stage" id="stage">
+        <aside class="rail rail-left">
+          <div class="rail-index">
+            <span>STATION</span>
+            <strong>00 / 01</strong>
+          </div>
+
+          <div class="rail-title" aria-hidden="true">你好世界</div>
+
+          <p class="manifesto">
+            从一颗由多边形构成的地球，<br />
+            向所有存在发送<br />
+            <em>你好。</em>
+          </p>
+
+          <div class="rail-spacer"></div>
+
+          <div class="interaction-hint" id="hint">
+            <div class="hint-line">
+              <span class="hint-box">CLICK</span>
+              <span class="hint-or">OR</span>
+              <span class="hint-box">ANY KEY</span>
+            </div>
+            <div class="hint-line hint-sub">
+              TO SAY <span class="blink">HELLO</span>
+              <span class="hint-arrow">↗</span>
+            </div>
+          </div>
+
+          <div class="rail-meta">NO. 001 / PLANETARY GREETING DEVICE</div>
+        </aside>
+
+        <section class="globe-zone" id="globe-zone" aria-label="交互式几何地球">
+          <div class="tech-label tech-a">ORBIT / 04</div>
+          <div class="tech-label tech-b">LAT 31.2304° N</div>
+          <div class="tech-label tech-c">LNG 121.4737° E</div>
+          <div class="tech-label tech-d">GAIN ∞</div>
+
+          <span class="cross cross-a" aria-hidden="true">+</span>
+          <span class="cross cross-b" aria-hidden="true">+</span>
+          <span class="cross cross-c" aria-hidden="true">+</span>
+          <span class="cross cross-d" aria-hidden="true">+</span>
+
+          <div class="orbit-ring orbit-a" aria-hidden="true"></div>
+          <div class="orbit-ring orbit-b" aria-hidden="true"></div>
+          <div class="satellite" aria-hidden="true"><i></i></div>
+
+          <div class="globe" id="globe">
+            <svg
+              class="earth"
+              viewBox="0 0 640 640"
+              role="img"
+              aria-label="一颗圆形的地球，蓝色海洋上分布着由多边形构成的绿色陆地"
+            >
+              <defs>
+                <clipPath id="earth-clip">
+                  <circle cx="320" cy="320" r="292" />
+                </clipPath>
+                <pattern
+                  id="ocean-hatch"
+                  width="16"
+                  height="16"
+                  patternUnits="userSpaceOnUse"
+                  patternTransform="rotate(35)"
+                >
+                  <line x1="0" y1="0" x2="0" y2="16" stroke="#f1eee1" stroke-width="1" opacity=".15" />
+                </pattern>
+                <pattern
+                  id="land-hatch"
+                  width="10"
+                  height="10"
+                  patternUnits="userSpaceOnUse"
+                  patternTransform="rotate(-45)"
+                >
+                  <line x1="0" y1="0" x2="0" y2="10" stroke="#0b0c09" stroke-width="1" opacity=".2" />
+                </pattern>
+                <path
+                  id="orbit-copy-path"
+                  d="M 78 412 A 278 278 0 0 0 562 412"
+                  fill="none"
+                />
+              </defs>
+
+              <circle class="earth-offset" cx="334" cy="334" r="292" />
+              <circle class="ocean-base" cx="320" cy="320" r="292" />
+              <g clip-path="url(#earth-clip)">
+                <rect class="ocean-hatch" x="20" y="20" width="600" height="600" fill="url(#ocean-hatch)" />
+
+                <g class="earth-grid">
+                  <ellipse cx="320" cy="320" rx="292" ry="292" />
+                  <ellipse cx="320" cy="320" rx="218" ry="292" />
+                  <ellipse cx="320" cy="320" rx="138" ry="292" />
+                  <ellipse cx="320" cy="320" rx="62" ry="292" />
+                  <path d="M 28 320 H 612" />
+                  <path d="M 39 240 Q 320 272 601 240" />
+                  <path d="M 69 170 Q 320 206 571 170" />
+                  <path d="M 39 400 Q 320 368 601 400" />
+                  <path d="M 69 470 Q 320 434 571 470" />
+                  <path d="M 110 115 Q 320 90 530 115" />
+                  <path d="M 110 525 Q 320 550 530 525" />
+                </g>
+
+                <g class="continents">
+                  <polygon
+                    points="137,154 218,121 258,163 236,203 264,238 231,278 197,266 174,301 137,270 153,231 117,205"
+                  />
+                  <polygon
+                    points="207,330 255,312 287,349 271,395 287,431 252,487 222,455 234,405 202,370"
+                  />
+                  <polygon
+                    points="327,136 379,117 408,153 391,191 420,215 399,246 421,277 399,312 414,352 389,412 357,452 327,421 338,381 313,349 325,310 299,276 315,239 298,204 320,180"
+                  />
+                  <polygon
+                    points="420,149 471,118 525,140 551,181 520,216 541,251 501,272 466,246 434,256 409,221 431,191"
+                  />
+                  <polygon points="471,370 510,353 537,379 525,415 490,426 463,401" />
+                  <polygon points="106,358 129,344 144,363 132,386 107,381" />
+                  <polygon points="533,306 554,292 565,312 550,329" />
+                  <polygon points="277,244 294,234 304,250 288,263" />
+                  <polygon
+                    points="244,467 300,438 364,447 406,485 385,531 315,550 255,521 233,490"
+                  />
+                  <path d="M 77 520 Q 320 474 563 520 L 563 620 L 77 620 Z" />
+                </g>
+
+                <g class="continent-facets" aria-hidden="true">
+                  <path d="M 137 154 L 218 121 L 236 203 Z" />
+                  <path d="M 236 203 L 264 238 L 231 278 L 197 266 Z" />
+                  <path d="M 207 330 L 287 349 L 271 395 L 234 405 Z" />
+                  <path d="M 327 136 L 379 117 L 391 191 L 338 210 Z" />
+                  <path d="M 391 191 L 420 215 L 399 246 L 365 230 Z" />
+                  <path d="M 399 312 L 414 352 L 389 412 L 359 375 Z" />
+                  <path d="M 420 149 L 471 118 L 520 216 L 466 246 Z" />
+                  <path d="M 471 370 L 537 379 L 490 426 Z" />
+                  <path d="M 244 467 L 300 438 L 315 550 L 255 521 Z" />
+                  <path d="M 300 438 L 364 447 L 385 531 L 315 550 Z" />
+                </g>
+
+                <g class="land-lines" aria-hidden="true">
+                  <path d="M 174 301 L 197 266 L 231 278" />
+                  <path d="M 153 231 L 197 266" />
+                  <path d="M 218 121 L 236 203 L 264 238" />
+                  <path d="M 327 136 L 338 210 L 365 230 L 391 191" />
+                  <path d="M 299 276 L 338 294 L 325 310" />
+                  <path d="M 357 452 L 338 381 L 359 375" />
+                  <path d="M 420 149 L 466 246 L 501 272" />
+                  <path d="M 434 256 L 466 246 L 520 216" />
+                  <path d="M 244 467 L 315 495 L 385 531" />
+                  <path d="M 255 521 L 315 495 L 406 485" />
+                </g>
+
+                <circle class="signal-origin" cx="457" cy="283" r="5" />
+                <circle class="signal-origin-ring" cx="457" cy="283" r="14" />
+                <path class="signal-origin-line" d="M 457 283 L 506 243" />
+              </g>
+
+              <g class="walk-path" aria-hidden="true">
+                <path d="M 380 485 A 175 175 0 0 1 260 485" />
+                <path class="walk-path-ticks" d="M 251 480 L 260 485 L 251 490 M 389 480 L 380 485 L 389 490" />
+              </g>
+
+              <circle class="earth-outline" cx="320" cy="320" r="292" />
+              <circle class="earth-registration" cx="332" cy="332" r="292" />
+              <circle class="earth-ticks" cx="320" cy="320" r="303" />
+              <text class="orbit-copy">
+                <textPath href="#orbit-copy-path" startOffset="5%">
+                  HELLO WORLD · 你好世界 · EVERY CLICK IS A SIGNAL · HELLO WORLD ·
+                </textPath>
+              </text>
+            </svg>
+
+            <div class="walker" id="walker" aria-hidden="true">
+              <div class="walker-tilt" id="walker-tilt">
+                <div class="walker-jump" id="walker-jump">
+                  <svg class="figure" viewBox="0 0 54 98">
+                    <ellipse class="figure-shadow" cx="27" cy="93" rx="17" ry="4" />
+                    <g class="figure-scarf">
+                      <path d="M 21 35 Q 7 38 2 50 Q 10 48 15 46 Q 9 55 7 63 Q 17 54 25 43 Z" />
+                    </g>
+                    <g class="figure-limb arm-a">
+                      <path d="M 18 46 L 8 61 L 12 64" />
+                    </g>
+                    <g class="figure-limb arm-b">
+                      <path d="M 36 46 L 46 60 L 42 64" />
+                    </g>
+                    <g class="figure-limb leg-a">
+                      <path d="M 22 70 L 17 87 L 10 90" />
+                    </g>
+                    <g class="figure-limb leg-b">
+                      <path d="M 32 70 L 38 86 L 46 87" />
+                    </g>
+                    <path class="figure-body" d="M 18 39 L 36 39 L 33 72 L 21 72 Z" />
+                    <path class="figure-body-mark" d="M 23 48 L 31 48 L 29 56 L 24 56 Z" />
+                    <circle class="figure-head" cx="27" cy="25" r="13" />
+                    <circle class="figure-eye" cx="32" cy="23" r="2.6" />
+                    <path class="figure-mouth" d="M 29 30 Q 33 32 36 29" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div class="speech" id="speech" role="status" aria-live="polite">
+              <span class="speech-top">
+                <span>OUTGOING TRANSMISSION</span>
+                <span id="speech-id">TX/000000</span>
+              </span>
+              <span class="speech-main">你好世界<span>！</span></span>
+              <span class="speech-bottom">HELLO, WORLD. <b>◉</b> SIGNAL SENT</span>
+            </div>
+
+            <div class="globe-caption" aria-hidden="true">
+              <span>TERRA / GEOMETRICA</span><span>◼</span>
+            </div>
+          </div>
+
+          <div class="orbit-label" aria-hidden="true">ORBITAL GREETING TERMINAL — EST. 2026</div>
+        </section>
+
+        <aside class="rail rail-right">
+          <div class="counter-block" id="counter-block">
+            <div class="counter-kicker">
+              <span>TOTAL GREETINGS</span>
+              <span>/ 全球累计问候</span>
+            </div>
+            <div class="counter" id="counter" aria-label="全球累计问候数">000,000</div>
+            <div class="counter-footer">
+              <span id="last-signal">AWAITING FIRST SIGNAL</span>
+              <span class="counter-dot" aria-hidden="true"></span>
+            </div>
+          </div>
+
+          <div class="recent-block">
+            <div class="recent-head">
+              <span>RECENT TRANSMISSIONS</span>
+              <span>最近信号</span>
+            </div>
+            <ol class="recent-list" id="recent-list">
+              <li class="recent-empty">— NO SIGNAL YET —</li>
+            </ol>
+          </div>
+
+          <div class="right-meta" aria-hidden="true">
+            <span>A SMALL ACT<br />OF CONTACT</span>
+            <span class="right-meta-symbol">∞</span>
+          </div>
+        </aside>
+      </main>
+
+      <footer class="ticker" aria-hidden="true">
+        <div class="ticker-track">
+          <span>你好，世界！</span><i>✳</i>
+          <span>HELLO, WORLD.</span><i>✳</i>
+          <span>每一次问候，都是一次起飞。</span><i>✳</i>
+          <span>EVERY CLICK LEAVES THE GROUND.</span><i>✳</i>
+          <span>信号没有国界。</span><i>✳</i>
+          <span>ONE PLANET / ONE HELLO.</span><i>✳</i>
+          <span>你好，世界！</span><i>✳</i>
+          <span>HELLO, WORLD.</span><i>✳</i>
+          <span>每一次问候，都是一次起飞。</span><i>✳</i>
+          <span>EVERY CLICK LEAVES THE GROUND.</span><i>✳</i>
+          <span>信号没有国界。</span><i>✳</i>
+          <span>ONE PLANET / ONE HELLO.</span><i>✳</i>
+        </div>
+      </footer>
+    </div>
+
+    <div class="shockwaves" id="shockwaves" aria-hidden="true"></div>
+
+    <div class="toast" id="toast" role="status">
+      <span class="toast-label">INCOMING</span>
+      <span>另一个存在向地球说了「你好世界」</span>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
