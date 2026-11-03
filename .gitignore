@@ -4,4 +4,4 @@ data/
 .edge-profile/
 *.log
 .DS_Store
-.CLAUDE.md
+CLAUDE.md
