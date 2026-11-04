@@ -2,7 +2,7 @@
 
 一个会记住所有人问候的几何地球。
 
-页面中央是一颗由多边形陆地和蓝色海洋构成的地球。一个几何小人沿着球面上的虚线不断行走；点击页面任意位置、或按下任意字母/回车键，它会跳起来说「你好世界！」。每一声问候都会写入 SQLite 数据库，全球累计数字会通过 SSE 实时同步给所有正在访问的人。
+页面中央是一颗由多边形陆地和蓝色海洋构成的地球。一个几何小人沿着球面上的虚线不断行走；点击页面任意位置、或按下任意字母/回车键，它会跳起来说「你好世界！」。每一声问候都会写入 PostgreSQL 数据库，全球累计数字会通过 SSE 实时同步给所有正在访问的人。
 
 ## 视觉方向
 
@@ -30,25 +30,56 @@ npm start
 npm run dev
 ```
 
-## 数据
+## 数据库
 
-问候记录保存在：
-
-```text
-data/hello.db
-```
-
-SQLite 表结构：
+应用使用 PostgreSQL（通过 [pg](https://node-postgres.com) 驱动）。表结构在首次启动时自动创建：
 
 ```sql
-CREATE TABLE greetings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  kind TEXT NOT NULL DEFAULT 'click'
+CREATE TABLE IF NOT EXISTS greetings (
+  id         SERIAL PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  kind       TEXT NOT NULL DEFAULT 'click'
 );
 ```
 
-删除 `data/hello.db`（以及同目录下的 `-wal` / `-shm` 文件）即可清空计数。
+## 环境变量
+
+创建 `.env` 文件（不要提交到 git）：
+
+```env
+DATABASE_URL=postgresql://user:password@host:port/dbname
+```
+
+### 本地开发（直连公开数据库）
+
+```env
+DATABASE_URL=postgresql://customer_db_owner_user:EEqOgIizENcCZibGUMfJKIxKn7uAiL3miUtvxmtJfB4w59GkhrTCEhJUCqifHNfn@db-nkw7i-269-47.db.hostoflow.app:5432/customer_db
+```
+
+### HostOflow 平台部署（链接服务 "Helloworld"）
+
+在 HostOflow 平台将数据库服务链接到该部署后，在环境变量设置里填写以下任一方式：
+
+**方式一：单个 DATABASE_URL（推荐）**
+
+```
+DATABASE_URL=postgresql://customer_db_owner_user:EEqOgIizENcCZibGUMfJKIxKn7uAiL3miUtvxmtJfB4w59GkhrTCEhJUCqifHNfn@db-nkw7i-269-47.db.hostoflow.app:5432/customer_db
+```
+
+**方式二：按 Env variable label 逐个设置**
+
+平台为你的服务生成的标签是 `db_nkw7i_269_47`，对应的环境变量如下：
+
+```
+DB_ENV_LABEL=db_nkw7i_269_47
+DB_DB_NKW7I_269_47_HOST=db-nkw7i-269-47.db.hostoflow.app
+DB_DB_NKW7I_269_47_PORT=5432
+DB_DB_NKW7I_269_47_NAME=customer_db
+DB_DB_NKW7I_269_47_USERNAME=customer_db_owner_user
+DB_DB_NKW7I_269_47_PASSWORD=EEqOgIizENcCZibGUMfJKIxKn7uAiL3miUtvxmtJfB4w59GkhrTCEhJUCqifHNfn
+```
+
+> 也可使用内网域名 `db-nkw7i-269-47.tenant-hywang-lab` 替换 `HOST`，速度更快且无需开启公网访问。
 
 ## API
 
@@ -59,10 +90,10 @@ CREATE TABLE greetings (
 
 ## 部署提示
 
-- 这是单实例应用，SQLite 适合小型公共艺术页面；如果要多实例部署，请把存储换成 Postgres 等共享数据库。
-- 部署平台需要持久化磁盘，否则重新部署会清空 `data/`。
+- 本应用无状态，可水平扩展至多个实例共享同一 PostgreSQL 数据库。
 - 服务默认监听所有网络接口，可以通过 `PORT` 环境变量改端口。
 - 让不同访客共享同一个计数，需要把应用部署到公网或局域网可访问的服务器，而不是只在本机打开。
+- 平台若支持 `.env` 文件上传，可将数据库连接信息写入其中（见上方 `.env.example`）。
 
 ## 操作
 
