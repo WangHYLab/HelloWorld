@@ -1,18 +1,21 @@
-# 使用官方 Node.js 20 轻量级镜像
 FROM node:20-alpine
 
-# 设置工作目录
+# 1. 安装原生模块编译所需的工具
+RUN apk add --no-cache python3 make g++
+
 WORKDIR /app
 
-# 复制依赖文件并安装
+# 2. 分步复制依赖文件
 COPY package*.json ./
-RUN npm ci --only=production
 
-# 复制源代码
+# 3. 安装生产依赖（使用 npm install 规避 npm ci 的潜在问题）
+RUN npm install --omit=dev
+
+# 4. 复制源代码
 COPY . .
 
-# 暴露端口（假设你的应用使用 3000，请根据 server.js 中的实际端口修改）
+# 5. 暴露端口（请确认与“Port to forward”中设置的一致，例如 3000）
 EXPOSE 3000
 
-# 启动命令（请确认与 package.json 中的 start 脚本一致）
+# 6. 启动命令
 CMD ["npm", "start"]
