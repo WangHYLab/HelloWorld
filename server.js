@@ -5,41 +5,43 @@ const { Pool } = require('pg');
 
 const PORT = Number(process.env.PORT) || 3000;
 
-// ─── PostgreSQL connection ────────────────────────────────────────────────────
-// Connection order of precedence:
-//   1. DATABASE_URL (e.g. for local .env use)
-//   2. DB_<ENV_LABEL>_* vars — env_label derived from "Env variable label" in platform
-//      Your label: db_nkw7i_269_47 → DB_DB_NKW7I_269_47_HOST, etc.
-//   3. DB_<SERVICE_LABEL>_* vars — service label uppercased (fallback)
-//      Your service label: Helloworld → DB_HELLOWORLD_HOST, etc.
-//   4. Legacy DB_* vars
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || buildConnectionString(),
-});
-
+// ─── Build connection string from multiple possible env var patterns ──────────
+// HostOflow may inject env vars in different formats depending on how the
+// service was linked. Try all known patterns.
 function buildConnectionString() {
-  // Try env-label first (most precise), then service label, then legacy
-  const envLabel = process.env.DB_ENV_LABEL;
-  const labelCandidates = envLabel
-    ? [envLabel.toUpperCase(), 'HELLOWORLD']
-    : ['HELLOWORLD'];
-
-  for (const label of labelCandidates) {
-    const host = getEnv(label, 'HOST');
-    const password = getEnv(label, 'PASSWORD');
-    if (host && password) {
-      const port = getEnv(label, 'PORT') || '5432';
-      const dbname = getEnv(label, 'NAME') || 'customer_db';
-      const user = getEnv(label, 'USERNAME') || 'customer_db_owner_user';
-      return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${dbname}`;
+  // Helper: read a variable with case-insensitive fallback
+  const env = (patterns) => {
+    for (const p of patterns) {
+      const v = process.env[p];
+      if (v) return v;
     }
+    return null;
+  };
+
+  // Pattern 1: direct DATABASE_URL
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+
+  // Pattern 2: DB_<label>_NAME format (env-label style, e.g. db_nkw7i_269_47)
+  // Also try uppercase variant
+  const dbHost = env(['DB_HOST', 'DB_DB_NKW7I_269_47_HOST', 'DB_HELLOWORLD_HOST']);
+  if (dbHost) {
+    const dbPort = env(['DB_PORT', 'DB_DB_NKW7I_269_47_PORT', 'DB_HELLOWORLD_PORT']) || '5432';
+    const dbName = env(['DB_NAME', 'DB_DB_NKW7I_269_47_NAME', 'DB_HELLOWORLD_NAME']) || 'customer_db';
+    const dbUser = env(['DB_USERNAME', 'DB_DB_NKW7I_269_47_USERNAME', 'DB_HELLOWORLD_USERNAME']) || 'customer_db_owner_user';
+    const dbPass = env(['DB_PASSWORD', 'DB_DB_NKW7I_269_47_PASSWORD', 'DB_HELLOWORLD_PASSWORD']);
+    if (!dbPass) throw new Error('DB_PASSWORD (or equivalent) not set');
+    return `postgresql://${dbUser}:${encodeURIComponent(dbPass)}@${dbHost}:${dbPort}/${dbName}`;
   }
-  throw new Error('No valid database connection env vars found. Set DATABASE_URL or DB_*_HOST + DB_*_PASSWORD.');
+
+  // Pattern 3: check all DB_ vars to help debug
+  const dbVars = Object.keys(process.env).filter(k => k.startsWith('DB_') && !k.toLowerCase().includes('password'));
+  throw new Error(`No database connection info found. Set DATABASE_URL or DB_HOST + DB_PASSWORD. Available DB_* vars: ${dbVars.join(', ') || 'none'}`);
 }
 
-function getEnv(label, key) {
-  return process.env[`DB_${label}_${key}`] || process.env[`DB_${key}`];
-}
+const connectionString = buildConnectionString();
+console.log(`[db] connecting to: ${connectionString.replace(/(password=)[^&]+/, '$1***')}`);
+
+const pool = new Pool({ connectionString });
 
 // ─── Schema (auto-created on first startup) ───────────────────────────────────
 const initSchema = `
@@ -55,7 +57,7 @@ const initSchema = `
     await pool.query(initSchema);
     console.log('  PostgreSQL schema ready');
   } catch (err) {
-    console.error('Failed to connect to PostgreSQL:', err.message);
+    console.error('[db] FAILED to connect to PostgreSQL:', err.message);
     process.exit(1);
   }
 })();
