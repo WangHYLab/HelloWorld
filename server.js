@@ -55,6 +55,12 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+// Log startup info for debugging
+console.log(`[init] NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+console.log(`[init] PORT: ${PORT}`);
+console.log(`[init] DATABASE_URL set: ${!!process.env.DATABASE_URL}`);
+console.log(`[init] Node version: ${process.version}`);
+
 // ─── Schema (auto-created on first startup) ───────────────────────────────────
 const initSchema = `
   CREATE TABLE IF NOT EXISTS greetings (
@@ -206,6 +212,16 @@ async function start() {
 
   const server = app.listen(PORT, () => {
     console.log(`\n  HELLO/WORLD terminal running at http://localhost:${PORT}\n`);
+    console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`  Database: Connected`);
+  });
+
+  server.on('error', (err) => {
+    console.error('[server] error:', err.message);
+    if (err.code === 'EADDRINUSE') {
+      console.error(`  Port ${PORT} is already in use`);
+    }
+    process.exit(1);
   });
 
   function shutdown() {
