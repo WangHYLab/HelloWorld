@@ -5,11 +5,8 @@ const { Pool } = require('pg');
 
 const PORT = Number(process.env.PORT) || 3000;
 
-// ─── Build connection string from multiple possible env var patterns ──────────
-// HostOflow may inject env vars in different formats depending on how the
-// service was linked. Try all known patterns.
+// ─── Build connection string ─────────────────────────────────────────────────
 function buildConnectionString() {
-  // Helper: read a variable with case-insensitive fallback
   const env = (patterns) => {
     for (const p of patterns) {
       const v = process.env[p];
@@ -18,32 +15,27 @@ function buildConnectionString() {
     return null;
   };
 
-  // Pattern 1: direct DATABASE_URL
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
 
-  // Pattern 2: DB_<label>_NAME format (env-label style, e.g. db_nkw7i_269_47)
-  // Also try uppercase variant
   const dbHost = env(['DB_HOST', 'DB_DB_NKW7I_269_47_HOST', 'DB_HELLOWORLD_HOST']);
   if (dbHost) {
     const dbPort = env(['DB_PORT', 'DB_DB_NKW7I_269_47_PORT', 'DB_HELLOWORLD_PORT']) || '5432';
     const dbName = env(['DB_NAME', 'DB_DB_NKW7I_269_47_NAME', 'DB_HELLOWORLD_NAME']) || 'customer_db';
     const dbUser = env(['DB_USERNAME', 'DB_DB_NKW7I_269_47_USERNAME', 'DB_HELLOWORLD_USERNAME']) || 'customer_db_owner_user';
     const dbPass = env(['DB_PASSWORD', 'DB_DB_NKW7I_269_47_PASSWORD', 'DB_HELLOWORLD_PASSWORD']);
-    if (!dbPass) throw new Error('DB_PASSWORD (or equivalent) not set');
+    if (!dbPass) throw new Error('DB_PASSWORD not set');
     return `postgresql://${dbUser}:${encodeURIComponent(dbPass)}@${dbHost}:${dbPort}/${dbName}`;
   }
 
-  // Pattern 3: check all DB_ vars to help debug
   const dbVars = Object.keys(process.env).filter(k => k.startsWith('DB_') && !k.toLowerCase().includes('password'));
-  throw new Error(`No database connection info found. Set DATABASE_URL or DB_HOST + DB_PASSWORD. Available DB_* vars: ${dbVars.join(', ') || 'none'}`);
+  throw new Error(`No DB connection info. Set DATABASE_URL or DB_HOST+DB_PASSWORD. Available: ${dbVars.join(', ') || 'none'}`);
 }
 
 const connectionString = buildConnectionString();
 console.log(`[db] connecting to: ${connectionString.replace(/(password=)[^&]+/, '$1***')}`);
-
 const pool = new Pool({ connectionString });
 
-// ─── Schema (auto-created on first startup) ───────────────────────────────────
+// ─── DB init + server start (sequential, not parallel) ───────────────────────
 const initSchema = `
   CREATE TABLE IF NOT EXISTS greetings (
     id         SERIAL PRIMARY KEY,
@@ -52,160 +44,157 @@ const initSchema = `
   );
 `;
 
-(async () => {
+const countQuery = 'SELECT COUNT(*) AS total FROM greetings';
+const recentQuery = 'SELECT id, created_at FROM greetings ORDER BY id DESC LIMIT 7';
+
+async function startServer() {
   try {
     await pool.query(initSchema);
     console.log('  PostgreSQL schema ready');
   } catch (err) {
-    console.error('[db] FAILED to connect to PostgreSQL:', err.message);
+    console.error('[db] FAILED:', err.message);
     process.exit(1);
   }
-})();
 
-// ─── Prepared SQL ─────────────────────────────────────────────────────────────
-const countQuery = 'SELECT COUNT(*) AS total FROM greetings';
-const recentQuery = 'SELECT id, created_at FROM greetings ORDER BY id DESC LIMIT 7';
+  const app = express();
+  const streamClients = new Set();
 
-// ─── Express app ──────────────────────────────────────────────────────────────
-const app = express();
-const streamClients = new Set();
+  app.disable('x-powered-by');
+  app.use(express.json({ limit: '8kb' }));
+  app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
-app.disable('x-powered-by');
-app.use(express.json({ limit: '8kb' }));
-app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
+  function sendEvent(res, event, payload) {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+  }
 
-function sendEvent(res, event, payload) {
-  res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
-}
-
-function broadcast(event, payload) {
-  for (const client of streamClients) {
-    try {
-      sendEvent(client, event, payload);
-    } catch {
-      streamClients.delete(client);
+  function broadcast(event, payload) {
+    for (const client of streamClients) {
+      try {
+        sendEvent(client, event, payload);
+      } catch {
+        streamClients.delete(client);
+      }
     }
   }
-}
 
-function broadcastPresence() {
-  broadcast('presence', { online: streamClients.size });
-}
-
-async function fetchStats() {
-  const [totalRow, recentRows] = await Promise.all([
-    pool.query(countQuery),
-    pool.query(recentQuery),
-  ]);
-  return {
-    total: parseInt(totalRow.rows[0].total, 10),
-    recent: recentRows.rows,
-    online: streamClients.size,
-  };
-}
-
-app.get('/api/stats', async (req, res) => {
-  res.set('Cache-Control', 'no-store');
-  try {
-    const stats = await fetchStats();
-    res.json(stats);
-  } catch (err) {
-    console.error('[api/stats] error:', err.message);
-    res.status(500).json({ error: 'Database unavailable' });
+  function broadcastPresence() {
+    broadcast('presence', { online: streamClients.size });
   }
-});
 
-app.post('/api/hello', async (req, res) => {
-  const kind = req.body?.kind === 'key' ? 'key' : 'click';
-  const visitorId =
-    typeof req.body?.visitorId === 'string'
-      ? req.body.visitorId.slice(0, 64)
-      : null;
-
-  try {
-    const result = await pool.query(
-      'INSERT INTO greetings (kind) VALUES ($1) RETURNING id, created_at',
-      [kind]
-    );
-    const newRow = result.rows[0];
-    const payload = await fetchStats();
-    payload.lastId = newRow.id;
-    payload.kind = kind;
-    payload.visitorId = visitorId;
-
-    broadcast('greeting', payload);
-    res.status(201).json(payload);
-  } catch (err) {
-    console.error('[api/hello] error:', err.message);
-    res.status(500).json({ error: 'Database unavailable' });
+  async function fetchStats() {
+    const [totalRow, recentRows] = await Promise.all([
+      pool.query(countQuery),
+      pool.query(recentQuery),
+    ]);
+    return {
+      total: parseInt(totalRow.rows[0].total, 10),
+      recent: recentRows.rows,
+      online: streamClients.size,
+    };
   }
-});
 
-app.get('/api/stream', (req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no',
-  });
-  res.write(': hello world\n\n');
-
-  streamClients.add(res);
-
-  fetchStats()
-    .then((stats) => {
-      sendEvent(res, 'stats', stats);
-      broadcastPresence();
-    })
-    .catch((err) => {
-      console.error('[stream] initial stats error:', err.message);
-      sendEvent(res, 'stats', { total: 0, recent: [], online: streamClients.size });
-      broadcastPresence();
-    });
-
-  const heartbeat = setInterval(() => {
+  app.get('/api/stats', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
     try {
-      res.write(': pulse\n\n');
-    } catch {
+      res.json(await fetchStats());
+    } catch (err) {
+      res.status(500).json({ error: 'Database unavailable' });
+    }
+  });
+
+  app.post('/api/hello', async (req, res) => {
+    const kind = req.body?.kind === 'key' ? 'key' : 'click';
+    const visitorId =
+      typeof req.body?.visitorId === 'string'
+        ? req.body.visitorId.slice(0, 64)
+        : null;
+
+    try {
+      const result = await pool.query(
+        'INSERT INTO greetings (kind) VALUES ($1) RETURNING id, created_at',
+        [kind]
+      );
+      const newRow = result.rows[0];
+      const payload = await fetchStats();
+      payload.lastId = newRow.id;
+      payload.kind = kind;
+      payload.visitorId = visitorId;
+
+      broadcast('greeting', payload);
+      res.status(201).json(payload);
+    } catch (err) {
+      res.status(500).json({ error: 'Database unavailable' });
+    }
+  });
+
+  app.get('/api/stream', (req, res) => {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    res.write(': hello world\n\n');
+
+    streamClients.add(res);
+
+    fetchStats()
+      .then((stats) => {
+        sendEvent(res, 'stats', stats);
+        broadcastPresence();
+      })
+      .catch((err) => {
+        console.error('[stream] error:', err.message);
+        sendEvent(res, 'stats', { total: 0, recent: [], online: streamClients.size });
+        broadcastPresence();
+      });
+
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(': pulse\n\n');
+      } catch {
+        clearInterval(heartbeat);
+        streamClients.delete(res);
+        broadcastPresence();
+      }
+    }, 20_000);
+
+    req.on('close', () => {
       clearInterval(heartbeat);
       streamClients.delete(res);
       broadcastPresence();
+    });
+  });
+
+  app.get('/health', async (req, res) => {
+    try {
+      res.json(await fetchStats());
+    } catch (err) {
+      res.json({ ok: false, error: err.message });
     }
-  }, 20_000);
-
-  req.on('close', () => {
-    clearInterval(heartbeat);
-    streamClients.delete(res);
-    broadcastPresence();
   });
-});
 
-app.get('/health', async (req, res) => {
-  try {
-    res.json(await fetchStats());
-  } catch (err) {
-    res.json({ ok: false, error: err.message });
-  }
-});
-
-app.use((req, res) => {
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ error: 'Not found' });
-  }
-  res.status(404).sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-const server = app.listen(PORT, () => {
-  console.log(`\n  HELLO/WORLD terminal running at http://localhost:${PORT}\n`);
-});
-
-function shutdown() {
-  for (const client of streamClients) client.end();
-  server.close(() => {
-    pool.end();
-    process.exit(0);
+  app.use((req, res) => {
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    res.status(404).sendFile(path.join(__dirname, 'public', 'index.html'));
   });
+
+  const server = app.listen(PORT, () => {
+    console.log(`\n  HELLO/WORLD terminal running at http://localhost:${PORT}\n`);
+  });
+
+  function shutdown() {
+    for (const client of streamClients) client.end();
+    server.close(() => {
+      pool.end();
+      process.exit(0);
+    });
+  }
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+startServer();
