@@ -6,36 +6,56 @@ const { Pool } = require('pg');
 const PORT = Number(process.env.PORT) || 3000;
 
 // ─── Build connection string ─────────────────────────────────────────────────
+// HostOflow injects env vars in these formats:
+//   Platform auto-generated: DB_db_r5710_269_47_HOST, DB_db_r5710_269_47_PASSWORD, etc.
+//   User-provided: DATABASE_URL
+//   Local dev: DB_HOST + DB_PASSWORD or DATABASE_URL
 function buildConnectionString() {
-  const env = (patterns) => {
-    for (const p of patterns) {
-      const v = process.env[p];
-      if (v) return v;
-    }
-    return null;
-  };
-
+  // Pattern 1: DATABASE_URL (highest priority for local dev)
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
 
-  const dbHost = env(['DB_HOST', 'DB_db_r5710_269_47_HOST', 'DB_HELLOWORLD_HOST']);
-  if (dbHost) {
-    const dbPort = env(['DB_PORT', 'DB_db_r5710_269_47_PORT', 'DB_HELLOWORLD_PORT']) || '5432';
-    const dbName = env(['DB_NAME', 'DB_db_r5710_269_47_NAME', 'DB_HELLOWORLD_NAME']) || 'customer_db';
-    const dbUser = env(['DB_USERNAME', 'DB_db_r5710_269_47_USERNAME', 'DB_HELLOWORLD_USERNAME']) || 'customer_db_owner_user';
-    const dbPass = env(['DB_PASSWORD', 'DB_db_r5710_269_47_PASSWORD', 'DB_HELLOWORLD_PASSWORD']);
-    if (!dbPass) throw new Error('DB_PASSWORD not set');
-    return `postgresql://${dbUser}:${encodeURIComponent(dbPass)}@${dbHost}:${dbPort}/${dbName}`;
+  // Pattern 2: DB_<label>_HOST format (platform auto-generated)
+  // Try all known label patterns
+  const patterns = [
+    ['DB_db_r5710_269_47_HOST', 'DB_DB_R5710_269_47_HOST'],
+    ['DB_db_nkw7i_269_47_HOST', 'DB_DB_NKW7I_269_47_HOST'],
+    ['DB_HELLOWORLD_HOST'],
+    ['DB_HOST'],
+  ];
+
+  for (const [hostKey] of patterns) {
+    const host = process.env[hostKey];
+    if (!host) continue;
+
+    // Find matching label from the key
+    const match = hostKey.match(/^DB_(.+)_HOST$/);
+    const label = match ? match[1] : null;
+
+    const port = process.env[label ? `DB_${label}_PORT` : 'DB_PORT'] || '5432';
+    const dbname = process.env[label ? `DB_${label}_NAME` : 'DB_NAME'] || 'customer_db';
+    const user = process.env[label ? `DB_${label}_USERNAME` : 'DB_USERNAME'] || 'customer_db_owner_user';
+    const password = process.env[label ? `DB_${label}_PASSWORD` : 'DB_PASSWORD'];
+
+    if (!password) continue;
+
+    return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${dbname}`;
   }
 
+  // Debug: show what DB vars are available
   const dbVars = Object.keys(process.env).filter(k => k.startsWith('DB_') && !k.toLowerCase().includes('password'));
-  throw new Error(`No DB connection info. Set DATABASE_URL or DB_HOST+DB_PASSWORD. Available: ${dbVars.join(', ') || 'none'}`);
+  console.error('[db] available DB env vars:', dbVars.length ? dbVars.sort().join(', ') : 'none');
+  throw new Error('No database connection info found. Set DATABASE_URL or DB_*_HOST + DB_*_PASSWORD.');
 }
 
 const connectionString = buildConnectionString();
 console.log(`[db] connecting to: ${connectionString.replace(/(password=)[^&]+/, '$1***')}`);
-const pool = new Pool({ connectionString });
+// Enable SSL for all environments (required by HostOflow PostgreSQL)
+const pool = new Pool({
+  connectionString,
+  ssl: { rejectUnauthorized: false },
+});
 
-// ─── DB init + server start (sequential, not parallel) ───────────────────────
+// ─── Schema (auto-created on first startup) ───────────────────────────────────
 const initSchema = `
   CREATE TABLE IF NOT EXISTS greetings (
     id         SERIAL PRIMARY KEY,
@@ -47,12 +67,13 @@ const initSchema = `
 const countQuery = 'SELECT COUNT(*) AS total FROM greetings';
 const recentQuery = 'SELECT id, created_at FROM greetings ORDER BY id DESC LIMIT 7';
 
-async function startServer() {
+// ─── Start: wait for DB, then serve ──────────────────────────────────────────
+async function start() {
   try {
     await pool.query(initSchema);
     console.log('  PostgreSQL schema ready');
   } catch (err) {
-    console.error('[db] FAILED:', err.message);
+    console.error('[db] FAILED to connect:', err.message);
     process.exit(1);
   }
 
@@ -98,6 +119,7 @@ async function startServer() {
     try {
       res.json(await fetchStats());
     } catch (err) {
+      console.error('[api/stats] error:', err.message);
       res.status(500).json({ error: 'Database unavailable' });
     }
   });
@@ -123,6 +145,7 @@ async function startServer() {
       broadcast('greeting', payload);
       res.status(201).json(payload);
     } catch (err) {
+      console.error('[api/hello] error:', err.message);
       res.status(500).json({ error: 'Database unavailable' });
     }
   });
@@ -197,4 +220,4 @@ async function startServer() {
   process.on('SIGTERM', shutdown);
 }
 
-startServer();
+start();
