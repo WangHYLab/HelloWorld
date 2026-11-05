@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
 
-const PORT = Number(process.env.PORT) || 8080;
+const PORT = Number(process.env.PORT) || process.env.OPENSHIFT_CONTAINER_PORT || 8080;
 
 // ─── Build connection string ─────────────────────────────────────────────────
 // HostOflow injects env vars in these formats:
@@ -211,9 +211,11 @@ async function start() {
   });
 
   const server = app.listen(PORT, () => {
-    console.log(`\n  HELLO/WORLD terminal running at http://localhost:${PORT}\n`);
+    console.log(`\n  HELLO/WORLD terminal running`);
+    console.log(`  Port: ${PORT}`);
     console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`  Database: Connected`);
+    console.log(`\n  Health check: http://localhost:${PORT}/health\n`);
   });
 
   server.on('error', (err) => {
