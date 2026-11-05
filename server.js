@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
 
-const PORT = Number(process.env.PORT) || process.env.OPENSHIFT_CONTAINER_PORT || 8080;
+const PORT = Number(process.env.PORT) || 8080;
 
 // ─── Build connection string ─────────────────────────────────────────────────
 // HostOflow injects env vars in these formats:
