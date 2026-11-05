@@ -17,12 +17,12 @@ function buildConnectionString() {
 
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
 
-  const dbHost = env(['DB_HOST', 'DB_DB_NKW7I_269_47_HOST', 'DB_HELLOWORLD_HOST']);
+  const dbHost = env(['DB_HOST', 'DB_db_r5710_269_47_HOST', 'DB_HELLOWORLD_HOST']);
   if (dbHost) {
-    const dbPort = env(['DB_PORT', 'DB_DB_NKW7I_269_47_PORT', 'DB_HELLOWORLD_PORT']) || '5432';
-    const dbName = env(['DB_NAME', 'DB_DB_NKW7I_269_47_NAME', 'DB_HELLOWORLD_NAME']) || 'customer_db';
-    const dbUser = env(['DB_USERNAME', 'DB_DB_NKW7I_269_47_USERNAME', 'DB_HELLOWORLD_USERNAME']) || 'customer_db_owner_user';
-    const dbPass = env(['DB_PASSWORD', 'DB_DB_NKW7I_269_47_PASSWORD', 'DB_HELLOWORLD_PASSWORD']);
+    const dbPort = env(['DB_PORT', 'DB_db_r5710_269_47_PORT', 'DB_HELLOWORLD_PORT']) || '5432';
+    const dbName = env(['DB_NAME', 'DB_db_r5710_269_47_NAME', 'DB_HELLOWORLD_NAME']) || 'customer_db';
+    const dbUser = env(['DB_USERNAME', 'DB_db_r5710_269_47_USERNAME', 'DB_HELLOWORLD_USERNAME']) || 'customer_db_owner_user';
+    const dbPass = env(['DB_PASSWORD', 'DB_db_r5710_269_47_PASSWORD', 'DB_HELLOWORLD_PASSWORD']);
     if (!dbPass) throw new Error('DB_PASSWORD not set');
     return `postgresql://${dbUser}:${encodeURIComponent(dbPass)}@${dbHost}:${dbPort}/${dbName}`;
   }
